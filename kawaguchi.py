@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
+from torchsummary import summary
 
 class Network(nn.Module):
   def __init__(self):
@@ -23,7 +24,6 @@ class Network(nn.Module):
     x = self.fc3(x)
     return F.log_softmax(x, dim=1)
 
-
 batch_size = 32
 train_loader = torch.utils.data.DataLoader(
   datasets.MNIST('../data', train=True, download=True,
@@ -40,12 +40,16 @@ validation_loader = torch.utils.data.DataLoader(
   ])),
   batch_size=1, shuffle=False)
 
-for i in range(0, 11): # 11 epochs
-  model = Network()
+model = Network()
+
+# input data shape: (1, 28, 28)
+
+for i in range(0, 2): # 11 epochs
   optimizer = optim.Adam(model.parameters(), lr=0.0001)
   model.train()
 
   for batch_idx, (data, target) in enumerate(train_loader):
+    # print(list(target.size()))
     output = model(data)
     loss = F.nll_loss(output, target)
     loss.backward()
@@ -73,7 +77,7 @@ for i in range(0, 11): # 11 epochs
   total_vect = torch.FloatTensor(total_vect)
 
   percentage_acc_vect = accuracy_vect / total_vect
-  print(percentage_acc_vect)
+  print("Current training accuracy: {}" .format(percentage_acc_vect))
 
 print("Final Accuracy: {}".format(percentage_acc_vect)) # Generalization error after one training episode
 
@@ -81,10 +85,23 @@ print("Final Accuracy: {}".format(percentage_acc_vect)) # Generalization error a
 
 # set up v, wBar[], z[], eig[], u[], G
 
+summary(model, (1, 28, 28))
 
+dy = 10
 
+i = 0
+
+for param in model.parameters():
+  if i > 20:
+    break
+  print(type(param.data), param.size())
+  i+=1
+
+# z=w_i
+
+'''
 ksum = 0
-for k in range(1, 11):
+for k in range(1, dy+1):
   wbar = wBar[k-1]
   wbarNorm = torch.norm(wbar)
   vNorm = torch.norm(v)
@@ -94,4 +111,5 @@ for k in range(1, 11):
   ksum += 2*vNorm*wbarNorm*cos(angle(wbar, v))
   ksum += (wbarNorm**2) * eigSum
 
+'''
 # Compare Final Acc. to keq
