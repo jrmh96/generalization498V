@@ -1,115 +1,104 @@
 import torch
 import random
+import numpy as np
 import torch.nn as nn
+from numpy import linalg as LA
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torchsummary import summary
 
-class Network(nn.Module):
-  def __init__(self):
-    super(Network, self).__init__()
-    self.fc1 = nn.Linear(28 * 28, 50)
-    self.fc1_drop = nn.Dropout(0.2)
-    self.fc2 = nn.Linear(50, 50)
-    self.fc2_drop = nn.Dropout(0.2)
-    self.fc3 = nn.Linear(50, 10)
 
-  def forward(self, x):
-    x = x.view(-1, 28 * 28)
-    x = F.relu(self.fc1(x))
-    x = self.fc1_drop(x)
-    x = F.relu(self.fc2(x))
-    x = self.fc2_drop(x)
-    x = self.fc3(x)
-    return F.log_softmax(x, dim=1)
+class MLP(nn.Module):
+    def __init__(self):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(28*28, 10)
+        self.fc1_bn = nn.LayerNorm(10)
 
-batch_size = 32
-train_loader = torch.utils.data.DataLoader(
-  datasets.MNIST('../data', train=True, download=True,
-                 transform=transforms.Compose([
-                   transforms.ToTensor(),
-                   transforms.Normalize((0.1307,), (0.3081,))
-                 ])),
-  batch_size=batch_size, shuffle=True)
+    def forward(self, x):
+        x = x.view(-1, 28*28)
+        x = self.fc1(x)
+        #x = self.fc1_bn(x)
+        #x = F.relu(x)
+        output = x
+        return output
 
-validation_loader = torch.utils.data.DataLoader(
-  datasets.MNIST('../data', train=False, transform=transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))
-  ])),
-  batch_size=1, shuffle=False)
+    def evaluateZ(self, x):
+        x = self.forward(x)
 
-model = Network()
 
-# input data shape: (1, 28, 28)
+        z = x.data.numpy()
+        G = np.dot(z.T,z)
+        values, vectors = LA.eig(G)
+        return (np.sum(values,axis=0))
 
-for i in range(0, 2): # 11 epochs
-  optimizer = optim.Adam(model.parameters(), lr=0.0001)
-  model.train()
+def encode(targets, batch_size=None, num_classes=10):
+    """"
+    targets - is a pytorch tensor of dim 1xBatchSize
+    returns - a matrix containing 1-hot vectors for the targets
+    """
+    targets_np = targets.data.numpy()
+    if batch_size == None:
+        batch_size = targets.shape[0]
 
-  for batch_idx, (data, target) in enumerate(train_loader):
-    # print(list(target.size()))
-    output = model(data)
-    loss = F.nll_loss(output, target)
-    loss.backward()
-    optimizer.step()
+    targets_np = targets.data.numpy()
+    if batch_size == None:
+        batch_size = targets.shape[0]
 
-  model.eval()
-  val_loss, correct = 0, 0
-  accuracy_vect = [0] * 10
-  total_vect = [0] * 10
+    ranged = range(0, batch_size)
+    cords = zip(ranged, targets_np)
 
-  for data, target in validation_loader:
-    output = model(data)
+    empty = torch.zeros((batch_size,num_classes))
 
-    val_loss += F.nll_loss(output, target).item()
-    pred = output.data.max(1)[1]  # get the index of the max log-probability
-    if pred == target.item():
-      accuracy_vect[pred] += 1
-    correct += pred.eq(target.data).cpu().sum()
-    total_vect[target] += 1
+    empty[ranged, targets_np] = 1
 
-  val_loss /= len(validation_loader)
-  accuracy = 100. * correct / len(validation_loader.dataset)
+    return empty
+if __name__ == '__main__':
+    batch_size = 1
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])),
+        batch_size=batch_size, shuffle=True)
 
-  accuracy_vect = torch.FloatTensor(accuracy_vect)
-  total_vect = torch.FloatTensor(total_vect)
+    validation_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=False, transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])),
+        batch_size=1, shuffle=False)
 
-  percentage_acc_vect = accuracy_vect / total_vect
-  print("Current training accuracy: {}" .format(percentage_acc_vect))
 
-print("Final Accuracy: {}".format(percentage_acc_vect)) # Generalization error after one training episode
 
-# Compute Kawaguchi's eq. on the final learned net
+    interval = 10000
 
-# set up v, wBar[], z[], eig[], u[], G
+    model = MLP()
+    loss_fn = torch.nn.MSELoss(reduction='sum')
 
-summary(model, (1, 28, 28))
+    for i in range(0,10):
+        model.train()
+        for batch_idx, (data, target) in enumerate(train_loader):
+            model.train()
+            target = encode(target)
+            optimizer = optim.Adam(model.parameters(), lr=0.001)
+            output = model(data)
+            loss = loss_fn(output,target)
+            loss.backward()
+            optimizer.step()
+            if batch_idx % interval == 0:
+                model.eval()
+                print("Eigen: %f" % model.evaluateZ(data))
+                print("Loss: %f" % float(loss.item()))
 
-dy = 10
+        model.eval()
+        val_loss, correct = 0, 0
+        for data, target in validation_loader:
+            output = model(data)
+            pred = output.data.max(1)[1]  # get the index of the max log-probability
+            if pred == target.item():
+                correct += pred.eq(target.data).data.sum().item()
 
-i = 0
-
-for param in model.parameters():
-  if i > 20:
-    break
-  print(type(param.data), param.size())
-  i+=1
-
-# z=w_i
-
-'''
-ksum = 0
-for k in range(1, dy+1):
-  wbar = wBar[k-1]
-  wbarNorm = torch.norm(wbar)
-  vNorm = torch.norm(v)
-  eigSum = 0
-  for j in range(0, eig.size):
-    eigSum+=eig[j]*cos(angle(u[j], wbar))**2
-  ksum += 2*vNorm*wbarNorm*cos(angle(wbar, v))
-  ksum += (wbarNorm**2) * eigSum
-
-'''
-# Compare Final Acc. to keq
+        val_loss /= len(validation_loader)
+        accuracy = 100. * correct / len(validation_loader.dataset)
+        print(accuracy)
