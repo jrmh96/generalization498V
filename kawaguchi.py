@@ -8,21 +8,21 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 
 class MLP(nn.Module):
+
     def __init__(self):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(28*28, 100)
-        self.fc2 = nn.Linear(100, 70)
-        self.fc3 = nn.Linear(70, 10)
-        self.fc1_bn = nn.LayerNorm(70)
-
+        self.fc2 = nn.Linear(100, 10)
+        # self.fc3 = nn.Linear(70, 10)
+        self.fc1_bn = nn.LayerNorm(100)
+        self.fc2_bn = nn.LayerNorm(70)
 
     def forward(self, x):
         x = x.view(-1, 28*28)
-        x = F.relu(self.fc1(x))
-        x = self.fc1_bn(x)
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        x = F.relu(self.fc1_bn(self.fc1(x)))
+        x = self.fc2(x)
+        # x = self.fc3(x)
+        return F.softmax(x, -1)
 
     def evaluateZ(self, x):
         x = self.forward(x)
@@ -55,7 +55,7 @@ def encode(targets, batch_size=None, num_classes=10):
     return empty
 
 if __name__ == '__main__':
-    batch_size = 100
+    batch_size = 1
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=True, download=True,
                     transform=transforms.Compose([
@@ -81,7 +81,7 @@ if __name__ == '__main__':
         for batch_idx, (data, target) in enumerate(train_loader):
             model.train()
             target = encode(target)
-            optimizer = optim.Adam(model.parameters(), lr=0.09)
+            optimizer = optim.Adam(model.parameters(), lr=0.0005)
             output = model(data)
             loss = loss_fn(output,target)
             loss.backward()
@@ -97,7 +97,7 @@ if __name__ == '__main__':
         model.eval()
 
         val_loss, correct = 0, 0
-        for data, target in validation_loader:
+        for data, target in validation_loader: # we use this as test data
             output = model(data)
             pred = output.data.max(1)[1]  # get the index of the max log-probability
             if pred == target.item():
@@ -105,4 +105,5 @@ if __name__ == '__main__':
 
         val_loss /= len(validation_loader)
         accuracy = 100. * correct / len(validation_loader.dataset)
-        print("Accuracy: %f %%" % accuracy)
+        print("\n\n********EPOCH********* {} done".format(i+1))
+        print("Accuracy: %f %%\n\n" % accuracy)
