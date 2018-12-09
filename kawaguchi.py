@@ -11,16 +11,17 @@ class MLP(nn.Module):
 
     def __init__(self):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(28*28, 100)
-        self.fc2 = nn.Linear(100, 10)
-        # self.fc3 = nn.Linear(70, 10)
-        self.fc1_bn = nn.LayerNorm(100)
-        self.fc2_bn = nn.LayerNorm(70)
+        self.fc1 = nn.Linear(28*28, 512)
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, 10)
+        self.fc1_bn = nn.LayerNorm(512)
+        self.fc2_bn = nn.LayerNorm(128)
 
     def forward(self, x):
         x = x.view(-1, 28*28)
         x = F.relu(self.fc1_bn(self.fc1(x)))
-        x = self.fc2(x)
+        x = F.relu(self.fc2_bn(self.fc2(x)))
+        x = self.fc3(x)
         # x = self.fc3(x)
         return F.softmax(x, -1)
 
@@ -55,21 +56,21 @@ def encode(targets, batch_size=None, num_classes=10):
     return empty
 
 if __name__ == '__main__':
-    batch_size = 1
+    batch_size = 32
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=True, download=True,
-                    transform=transforms.Compose([
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.1307,), (0.3081,))
-                       ])),
+        transform=transforms.Compose([
+        transforms.ToTensor(),
+        # transforms.Normalize((0.1307,), (0.3081,))
+        ])),
         batch_size=batch_size, shuffle=True)
 
     validation_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=False, transform=transforms.Compose([
                            transforms.ToTensor(),
-                           transforms.Normalize((0.1307,), (0.3081,))
+                          # transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-        batch_size=batch_size, shuffle=False)
+        batch_size=1, shuffle=False)
 
     interval = 10000
 
@@ -87,11 +88,11 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
             if batch_idx % interval == 0:
-              print("Output from model: {}".format(output))
-              print("Output from target: {}".format(target))
-              model.eval()
-              print("Eigen: %f" % model.evaluateZ(data))
-              print("Loss: %f" % float(loss.item()))
+               # print("Output from model: {}".format(output))
+               # print("Output from target: {}".format(target))
+                model.eval()
+                print("Eigen: %f" % model.evaluateZ(data))
+                print("Loss: %f" % float(loss.item()))
 
         # print(output)
         model.eval()
@@ -99,7 +100,14 @@ if __name__ == '__main__':
         val_loss, correct = 0, 0
         for data, target in validation_loader: # we use this as test data
             output = model(data)
+
+            # for i < data.rows
+                # array = data[i]
+                # pred = array.max()
+                # if pred == target[i].max correct+=1
+
             pred = output.data.max(1)[1]  # get the index of the max log-probability
+
             if pred == target.item():
                 correct += pred.eq(target.data).data.sum().item()
 
