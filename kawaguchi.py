@@ -7,25 +7,25 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 
-
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(28*28, 10)
-        self.fc1_bn = nn.LayerNorm(10)
+        self.fc1 = nn.Linear(28*28, 100)
+        self.fc2 = nn.Linear(100, 70)
+        self.fc3 = nn.Linear(70, 10)
+        self.fc1_bn = nn.LayerNorm(70)
+
 
     def forward(self, x):
         x = x.view(-1, 28*28)
-        x = self.fc1(x)
-        #x = self.fc1_bn(x)
-        #x = F.relu(x)
-        output = x
-        return output
+        x = F.relu(self.fc1(x))
+        x = self.fc1_bn(x)
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
     def evaluateZ(self, x):
         x = self.forward(x)
-
-
         z = x.data.numpy()
         G = np.dot(z.T,z)
         values, vectors = LA.eig(G)
@@ -41,6 +41,7 @@ def encode(targets, batch_size=None, num_classes=10):
         batch_size = targets.shape[0]
 
     targets_np = targets.data.numpy()
+
     if batch_size == None:
         batch_size = targets.shape[0]
 
@@ -52,11 +53,12 @@ def encode(targets, batch_size=None, num_classes=10):
     empty[ranged, targets_np] = 1
 
     return empty
+
 if __name__ == '__main__':
-    batch_size = 1
+    batch_size = 100
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=True, download=True,
-                       transform=transforms.Compose([
+                    transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
@@ -67,31 +69,33 @@ if __name__ == '__main__':
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-        batch_size=1, shuffle=False)
-
-
+        batch_size=batch_size, shuffle=False)
 
     interval = 10000
 
     model = MLP()
     loss_fn = torch.nn.MSELoss(reduction='sum')
-
+    p = 0
     for i in range(0,10):
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
             model.train()
             target = encode(target)
-            optimizer = optim.Adam(model.parameters(), lr=0.001)
+            optimizer = optim.Adam(model.parameters(), lr=0.09)
             output = model(data)
             loss = loss_fn(output,target)
             loss.backward()
             optimizer.step()
             if batch_idx % interval == 0:
-                model.eval()
-                print("Eigen: %f" % model.evaluateZ(data))
-                print("Loss: %f" % float(loss.item()))
+              print("Output from model: {}".format(output))
+              print("Output from target: {}".format(target))
+              model.eval()
+              print("Eigen: %f" % model.evaluateZ(data))
+              print("Loss: %f" % float(loss.item()))
 
+        # print(output)
         model.eval()
+
         val_loss, correct = 0, 0
         for data, target in validation_loader:
             output = model(data)
@@ -101,4 +105,4 @@ if __name__ == '__main__':
 
         val_loss /= len(validation_loader)
         accuracy = 100. * correct / len(validation_loader.dataset)
-        print(accuracy)
+        print("Accuracy: %f %%" % accuracy)
