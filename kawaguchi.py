@@ -1,5 +1,4 @@
 import torch
-import random
 import numpy as np
 import torch.nn as nn
 from numpy import linalg as LA
@@ -9,7 +8,6 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 
 class MLP(nn.Module):
-
     def __init__(self):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(28*28, 512)
@@ -67,13 +65,13 @@ if __name__ == '__main__':
         datasets.MNIST('../data', train=True, download=True,
         transform=transforms.Compose([
         transforms.ToTensor(),
-        # transforms.Normalize((0.1307,), (0.3081,))
+        transforms.Normalize((0.1307,), (0.3081,))
         ])),
         batch_size=batch_size, shuffle=True)
 
     mnist_val = datasets.MNIST('../data', train=False, transform=transforms.Compose([
                            transforms.ToTensor(),
-                          # transforms.Normalize((0.1307,), (0.3081,))
+                           transforms.Normalize((0.1307,), (0.3081,))
                        ]))
 
     validation_loader = torch.utils.data.DataLoader(
@@ -84,6 +82,7 @@ if __name__ == '__main__':
 
     model = MLP()
     loss_fn = torch.nn.MSELoss(reduction='sum')
+
     p = 0
 
     testLoss = []  # Training eigen values vs. loss
@@ -134,14 +133,6 @@ if __name__ == '__main__':
             #    break
             #e+=1
 
-            z = output.data.numpy()
-            zzT = np.dot(z.T, z)
-
-            if zSum is None:
-                zSum = zzT
-            else:
-                zSum += zzT
-
             # print("Eigen: %f" % eigen)
             # print("Loss: %f" % float(loss.item()))
 
@@ -159,18 +150,11 @@ if __name__ == '__main__':
 
         accuracy = 100. * correct / len(validation_loader.dataset)
 
-        values, vectors = LA.eig(1.0 / len(mnist_val) * zSum)
-
-        eigen = np.sum(values, axis=0)
-        testLoss.append(val_loss.item())
-        testEigenVals.append(eigen)
-        print(testLoss)
-        print(testEigenVals)
-        plt.scatter(testLoss, testEigenVals)
-        plt.title('Eigenvalues vs. Loss on test set at end of epoch {}, accuracy: {}'.format(epoch, accuracy))
-        plt.xlabel('Test Loss')
-        plt.ylabel('Eigenvalues of h.T*h') # h = activation vector of last layer
-        plt.show()
+        # compute the weight path vector
+        parameters = []
+        for param in model.parameters():
+            print(type(param.data), param.size())
+            parameters.append(param)
 
         '''
         plt.scatter(correctLoss, correctEig)
