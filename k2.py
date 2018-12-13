@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(28*28, 320)
+        self.fc1 = nn.Linear(28*28, 30)
         # self.fc1 = nn.Linear(28*28, 128)
-        self.fc2 = nn.Linear(320, 10)
+        self.fc2 = nn.Linear(30, 10)
         # self.fc3 = nn.Linear(128, 10)
-        self.fc1_bn = nn.LayerNorm(320)
+        self.fc1_bn = nn.LayerNorm(30)
         # self.fc2_bn = nn.LayerNorm(128)
         self.d = 1
 
@@ -58,22 +58,17 @@ def encode(targets, batch_size=None, num_classes=10):
         return empty
 
 def dfs(params, w):
-    dfsHelper(params, 0, 0, 0, 1, w)
+    dfsHelper(params, 0, 1, w)
 
-def dfsHelper(params, depth, row, col, wk, w):
-
+def dfsHelper(params, depth, wk, w):
     if(depth == len(params)):
         w.append(wk)
         return
 
-    if(row == len(params[depth])):
-        return
-
-    if(col == len(params[depth])):
-        dfsHelper(params, depth, row+1, 0, wk, w)
-
-    dfsHelper(params, depth+1, row, col, wk*params[depth][row][col], w)
-
+    for r in range(0, len(params[depth])):
+        for c in range(0, len(params[depth][r])):
+            wkC = wk*params[depth][r][c]
+            dfsHelper(params, depth+1, wkC, w)
 
 if __name__ == '__main__':
     batch_size = 32
@@ -119,6 +114,24 @@ if __name__ == '__main__':
             # print(output)
         model.eval()
 
+        parameters = []
+        for param in model.parameters():
+            # get Weight matrices, note that forward pass uses W^T x
+            lstParam = list(param.size())
+            if (len(lstParam) == 2):
+                # print(param.size())
+                # print(torch.transpose(param.data, 0, 1).numpy().shape)
+                parameters.append(
+                    torch.transpose(param.data, 0, 1).numpy())  # parameters are in order by network structure
+
+        param = np.array(parameters)
+
+        # compute the pathwise weight vector
+        wbar = []
+        dfs(param, wbar)
+
+        print(len(wbar))
+
         val_loss, correct = 0, 0
 
         for data, target in validation_loader:  # Validation error
@@ -134,18 +147,6 @@ if __name__ == '__main__':
 
             accuracy = 100. * correct / len(validation_loader.dataset)
 
-        parameters = []
-        for param in model.parameters():
-            print(type(param.data), param.size()) # get Weight matrices, note that forward pass uses W^T x
-            lstParam = list(param.size())
-            if(len(lstParam) == 2):
-                # print(param.size())
-                parameters.append(torch.transpose(param.data, 0, 1).numpy()) # parameters are in order by network structure
-
-        # compute the weight path vector
-        wbar = []
-        dfs(parameters, wbar)
-
-        print(len(wbar))
+        # With wbar and z, we can compute G
 
 
